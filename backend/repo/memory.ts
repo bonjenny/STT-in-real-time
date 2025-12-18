@@ -48,6 +48,14 @@ export const paragraphRepo = {
       .sort((a, b) => a.order - b.order),
   findGenerating: (projectId: string): TranscriptParagraph | undefined =>
     paragraphs.find((p) => p.projectId === projectId && p.status === "GENERATING"),
+  appendToGenerating: (projectId: string, textDelta: string): TranscriptParagraph => {
+    const target = paragraphRepo.findGenerating(projectId);
+    if (!target) {
+      throw new Error("NO_GENERATING");
+    }
+    target.text = `${target.text} ${textDelta}`.trim();
+    return target;
+  },
   createGenerating: (projectId: string): TranscriptParagraph => {
     const existing = paragraphRepo.findGenerating(projectId);
     if (existing) {
