@@ -11,6 +11,8 @@ import { DummySttEngine } from "./dummy_engine";
 import {
   startSttSession,
   stopSessionByProject,
+  applyPartialResult,
+  applyFinalResult,
 } from "./session_service";
 
 type SendFn = (message: WsServerMessage) => void;
@@ -87,6 +89,74 @@ export function handleClientMessage(
           message: "지원하지 않는 메시지 타입입니다.",
         }),
       );
+  }
+}
+
+// ---- STT 결과 전파 (Partial/Final) ----
+
+export function handleSttPartialResult(
+  projectId: string,
+  text: string,
+  send: SendFn,
+) {
+  try {
+    const { paragraphId } = applyPartialResult(projectId, text);
+    send(
+      buildEnvelope(WsMessageType.STT_PARTIAL_RESULT, {
+        paragraphId,
+        text,
+      }),
+    );
+  } catch (err) {
+    const code =
+      err instanceof Error && err.message === "NO_GENERATING"
+        ? WsErrorCode.INVALID_STATE
+        : err instanceof Error && err.message === "SESSION_NOT_FOUND"
+        ? WsErrorCode.SESSION_NOT_FOUND
+        : WsErrorCode.INTERNAL_ERROR;
+    send(
+      buildEnvelope(WsMessageType.ERROR, {
+        code,
+        message: err instanceof Error ? err.message : "unknown error",
+      }),
+    );
+  }
+}
+
+export function handleSttFinalResult(
+  projectId: string,
+  text: string,
+  send: SendFn,
+) {
+  try {
+    const { finalizedId, nextId, finalizedText } = applyFinalResult(projectId, text);
+    send(
+      buildEnvelope(WsMessageType.STT_FINAL_RESULT, {
+        paragraphId: finalizedId,
+        text: finalizedText,
+      }),
+    );
+    send(
+      buildEnvelope(WsMessageType.PARAGRAPH_CREATED, {
+        paragraphId: nextId,
+        status: "GENERATING",
+      }),
+    );
+  } catch (err) {
+    const code =
+      err instanceof Error && err.message === "NO_GENERATING"
+        ? WsErrorCode.INVALID_STATE
+        : err instanceof Error && err.message === "SESSION_NOT_FOUND"
+        ? WsErrorCode.SESSION_NOT_FOUND
+        : err instanceof Error && err.message === "INVALID_STATE"
+        ? WsErrorCode.INVALID_STATE
+        : WsErrorCode.INTERNAL_ERROR;
+    send(
+      buildEnvelope(WsMessageType.ERROR, {
+        code,
+        message: err instanceof Error ? err.message : "unknown error",
+      }),
+    );
   }
 }
 
