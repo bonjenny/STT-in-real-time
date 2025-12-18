@@ -46,6 +46,8 @@ export const paragraphRepo = {
     paragraphs
       .filter((p) => p.projectId === projectId)
       .sort((a, b) => a.order - b.order),
+  getById: (id: string): TranscriptParagraph | undefined =>
+    paragraphs.find((p) => p.id === id),
   findGenerating: (projectId: string): TranscriptParagraph | undefined =>
     paragraphs.find((p) => p.projectId === projectId && p.status === "GENERATING"),
   appendToGenerating: (projectId: string, textDelta: string): TranscriptParagraph => {
@@ -93,6 +95,14 @@ export const paragraphRepo = {
     const finalized = paragraphRepo.finalizeGenerating(projectId);
     const next = paragraphRepo.createGenerating(projectId);
     return { finalized, next };
+  },
+  updateText: (id: string, text: string): TranscriptParagraph => {
+    const target = paragraphRepo.getById(id);
+    if (!target) {
+      throw new Error("NOT_FOUND");
+    }
+    target.text = text;
+    return target;
   },
 };
 
