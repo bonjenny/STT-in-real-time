@@ -1,15 +1,27 @@
 import { SttEngine, SttEngineSession, PartialResultHandler, FinalResultHandler } from "../engine";
 
-// PHASE E(스켈레톤): Whisper 등 배치/의사-스트리밍 엔진을 감싸기 위한 어댑터 틀
-// 실제 외부 호출/토큰/요청 전송 로직은 구현하지 않는다.
+// PHASE E: Whisper와 같이 스트리밍 미지원 엔진을 위한 의사-스트리밍 어댑터
+// - 외부 API 호출 없음. 타이머로 partial/final을 흉내냄.
+// - sendAudio는 버퍼 카운트만 증가시켜 배치 호출을 가정.
+
+const samplePhrases = [
+  "의사 스트리밍으로 부분 결과를 생성합니다.",
+  "버퍼가 채워지면 배치 요청을 보낸다고 가정합니다.",
+  "최종 결과를 합쳐서 반환합니다.",
+];
 
 class StubWhisperSession implements SttEngineSession {
   private partialHandlers: PartialResultHandler[] = [];
   private finalHandlers: FinalResultHandler[] = [];
   private closed = false;
+  private bufferCount = 0;
+  private timer: NodeJS.Timeout | null = null;
+  private phraseIndex = 0;
 
   sendAudio(_chunk: Buffer): void {
-    // 향후: chunk 버퍼링 후 주기적 batch 호출로 partial/final 흉내
+    if (this.closed) return;
+    this.bufferCount += 1;
+    this.ensureTimer();
   }
 
   onPartialResult(cb: PartialResultHandler): void {
@@ -22,17 +34,26 @@ class StubWhisperSession implements SttEngineSession {
 
   close(): void {
     this.closed = true;
+    if (this.timer) clearInterval(this.timer);
   }
 
-  // 데모용 수동 트리거 (테스트/목업)
-  emitPartial(text: string) {
-    if (this.closed) return;
-    this.partialHandlers.forEach((cb) => cb(text));
-  }
-
-  emitFinal(text: string) {
-    if (this.closed) return;
-    this.finalHandlers.forEach((cb) => cb(text));
+  private ensureTimer() {
+    if (this.timer || this.closed) return;
+    this.timer = setInterval(() => {
+      if (this.closed) {
+        if (this.timer) clearInterval(this.timer);
+        return;
+      }
+      if (this.bufferCount <= 0) return;
+      const phrase = samplePhrases[this.phraseIndex % samplePhrases.length];
+      this.partialHandlers.forEach((cb) => cb(phrase));
+      // 3번째마다 final로 확정
+      if (this.phraseIndex % 3 === 2) {
+        this.finalHandlers.forEach((cb) => cb(phrase));
+      }
+      this.phraseIndex += 1;
+      this.bufferCount = 0;
+    }, 1200);
   }
 }
 
