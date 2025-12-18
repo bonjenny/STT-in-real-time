@@ -23,3 +23,11 @@ export type PostprocessOptions = {
 
 export type JobStatus = "queued" | "processing" | "done" | "error";
 
+export type ParagraphStatus = "GENERATING" | "FINALIZED" | "EDITING";
+
+export type Paragraph = {
+  id: string;
+  text: string;
+  status: ParagraphStatus;
+};
+

@@ -1,62 +1,54 @@
 "use client";
 
-import {
-  Card,
-  CardContent,
-  Chip,
-  Divider,
-  Stack,
-  Typography,
-} from "@mui/material";
-import { TranscriptSegment } from "@/lib/types";
+import { Card, CardContent, Stack, Typography } from "@mui/material";
+import TranscriptParagraph from "./TranscriptParagraph";
+import { Paragraph } from "@/lib/types";
 
 type Props = {
-  partialText: string;
-  finalSegments: TranscriptSegment[];
+  paragraphs: Paragraph[];
+  generatingParagraphId: string | null;
+  editingParagraphId: string | null;
+  onSelectParagraph: (id: string) => void;
+  onChangeParagraph: (id: string, text: string) => void;
+  onBlurEdit: (id: string) => void;
 };
 
 export default function TranscriptPanel({
-  partialText,
-  finalSegments,
+  paragraphs,
+  generatingParagraphId,
+  editingParagraphId,
+  onSelectParagraph,
+  onChangeParagraph,
+  onBlurEdit,
 }: Props) {
   return (
     <Card variant="outlined" sx={{ height: "100%", background: "#fff" }}>
       <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Typography variant="subtitle2" color="text.secondary">
-          실시간 텍스트
+          단락 단위 실시간 텍스트
         </Typography>
-        <Stack spacing={1} sx={{ minHeight: 200 }}>
-          {partialText && (
-            <Chip
-              label={partialText}
-              color="primary"
-              variant="outlined"
-              sx={{ alignSelf: "flex-start" }}
+        <Stack spacing={1.25} sx={{ maxHeight: 520, overflowY: "auto" }}>
+          {paragraphs.map((p) => (
+            <TranscriptParagraph
+              key={p.id}
+              paragraphId={p.id}
+              status={p.status}
+              text={p.text}
+              onClick={() => onSelectParagraph(p.id)}
+              onChange={(val) => onChangeParagraph(p.id, val)}
+              onBlurEdit={() => onBlurEdit(p.id)}
             />
+          ))}
+          {!paragraphs.length && (
+            <Typography variant="body2" color="text.secondary">
+              단락이 없습니다. 녹음을 시작하면 AI가 단락을 생성합니다.
+            </Typography>
           )}
-          <Divider flexItem />
-          <Stack spacing={1.5} sx={{ maxHeight: 380, overflowY: "auto" }}>
-            {finalSegments.map((segment) => (
-              <Typography
-                key={segment.id}
-                variant="body1"
-                sx={{
-                  background: "#f7f8fb",
-                  borderRadius: 1.5,
-                  px: 1.5,
-                  py: 1,
-                }}
-              >
-                {segment.text}
-              </Typography>
-            ))}
-            {!finalSegments.length && (
-              <Typography variant="body2" color="text.secondary">
-                확정된 문장이 여기에 표시됩니다.
-              </Typography>
-            )}
-          </Stack>
         </Stack>
+        <Typography variant="caption" color="text.secondary">
+          AI 생성 단락과 편집 단락은 완전히 분리되어 업데이트/커서가 충돌하지 않습니다.
+          현재 생성 단락: {generatingParagraphId ?? "없음"}, 편집 단락: {editingParagraphId ?? "없음"}
+        </Typography>
       </CardContent>
     </Card>
   );

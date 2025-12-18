@@ -1,4 +1,4 @@
-import { Project, TranscriptSegment } from "./types";
+import { Paragraph, Project, TranscriptSegment } from "./types";
 
 export const mock_projects: Project[] = [
   {
@@ -42,6 +42,24 @@ export const mock_segments: TranscriptSegment[] = [
     start: 7.2,
     end: 10.5,
     status: "final",
+  },
+];
+
+export const mock_paragraphs: Paragraph[] = [
+  {
+    id: "para-1",
+    text: "안녕하세요, 오늘 회의를 시작하겠습니다.",
+    status: "FINALIZED",
+  },
+  {
+    id: "para-2",
+    text: "이번 안건은 제품 출시 일정과 리스크 검토입니다.",
+    status: "FINALIZED",
+  },
+  {
+    id: "para-3",
+    text: "AI가 생성 중인 단락입니다...",
+    status: "GENERATING",
   },
 ];
 

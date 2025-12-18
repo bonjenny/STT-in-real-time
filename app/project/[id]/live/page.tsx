@@ -17,8 +17,9 @@ import RecordPanel from "@/components/live/RecordPanel";
 import TranscriptPanel from "@/components/live/TranscriptPanel";
 import ExportModal from "@/components/modal/ExportModal";
 import SettingsModal from "@/components/modal/SettingsModal";
-import { TranscriptSegment } from "@/lib/types";
+import { Paragraph } from "@/lib/types";
 import { useSnackbar } from "notistack";
+import { mock_paragraphs } from "@/lib/mock";
 
 const sample_phrases = [
   "지금 말씀하신 내용을 인식하고 있어요.",
@@ -35,8 +36,13 @@ export default function LivePage() {
     "idle" | "recording" | "paused" | "stopped"
   >("idle");
   const [elapsed_seconds, set_elapsed_seconds] = useState(0);
-  const [partial_text, set_partial_text] = useState("");
-  const [final_segments, set_final_segments] = useState<TranscriptSegment[]>([]);
+
+  const [paragraphs, set_paragraphs] = useState<Paragraph[]>(() => mock_paragraphs);
+  const [generating_id, set_generating_id] = useState<string | null>(() => {
+    const g = mock_paragraphs.find((p) => p.status === "GENERATING");
+    return g?.id ?? null;
+  });
+  const [editing_id, set_editing_id] = useState<string | null>(null);
 
   const [export_open, set_export_open] = useState(false);
   const [settings_open, set_settings_open] = useState(false);
@@ -56,26 +62,44 @@ export default function LivePage() {
 
   useEffect(() => {
     if (session_state !== "recording") return;
+    if (!generating_id) {
+      const new_id = `para-${Date.now()}`;
+      set_paragraphs((prev) => [
+        ...prev,
+        { id: new_id, text: "", status: "GENERATING" },
+      ]);
+      set_generating_id(new_id);
+    }
     let phrase_index = 0;
     const interval = setInterval(() => {
+      if (!generating_id) return;
       const phrase = sample_phrases[phrase_index % sample_phrases.length];
-      set_partial_text(phrase);
-      set_final_segments((prev) => [
-        ...prev,
-        {
-          id: `seg-${Date.now()}`,
-          text: phrase,
-          status: "final",
-        },
-      ]);
+      set_paragraphs((prev) =>
+        prev.map((p) =>
+          p.id === generating_id ? { ...p, text: `${p.text} ${phrase}`.trim() } : p,
+        ),
+      );
       phrase_index += 1;
+      // 목업: 두 문장마다 finalize 처리
+      if (phrase_index % 2 === 0 && generating_id) {
+        set_paragraphs((prev) =>
+          prev.map((p) =>
+            p.id === generating_id ? { ...p, status: "FINALIZED" } : p,
+          ),
+        );
+        const next_id = `para-${Date.now() + 1}`;
+        set_paragraphs((prev) => [
+          ...prev,
+          { id: next_id, text: "", status: "GENERATING" },
+        ]);
+        set_generating_id(next_id);
+      }
     }, 2200);
     return () => clearInterval(interval);
-  }, [session_state]);
+  }, [session_state, generating_id]);
 
   const handle_record = () => {
     set_session_state("recording");
-    set_partial_text("");
     enqueueSnackbar("녹음을 시작합니다.", { variant: "info" });
   };
 
@@ -86,7 +110,6 @@ export default function LivePage() {
 
   const handle_stop = () => {
     set_session_state("stopped");
-    set_partial_text("");
     enqueueSnackbar("녹음이 종료되었습니다.", { variant: "success" });
   };
 
@@ -95,6 +118,57 @@ export default function LivePage() {
       variant: "success",
     });
     set_export_open(false);
+  };
+
+  const set_editing = (id: string | null) => {
+    if (id && id === generating_id) return; // generating과 동일 불가
+    set_editing_id(id);
+    set_paragraphs((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? { ...p, status: "EDITING" }
+          : p.status === "EDITING"
+          ? { ...p, status: "FINALIZED" }
+          : p,
+      ),
+    );
+  };
+
+  const handle_select_paragraph = (id: string) => {
+    const target = paragraphs.find((p) => p.id === id);
+    if (!target) return;
+    if (target.status === "GENERATING") {
+      enqueueSnackbar("AI가 생성 중인 단락입니다. 완료 후 수정할 수 있습니다.", {
+        variant: "info",
+      });
+      return;
+    }
+    if (editing_id && editing_id !== id) {
+      // 기존 편집 단락 자동 저장 후 FINALIZED
+      set_paragraphs((prev) =>
+        prev.map((p) =>
+          p.id === editing_id ? { ...p, status: "FINALIZED" } : p,
+        ),
+      );
+    }
+    set_editing(id);
+  };
+
+  const handle_change_paragraph = (id: string, text: string) => {
+    if (id === generating_id) return; // 스트림 전용
+    set_paragraphs((prev) => prev.map((p) => (p.id === id ? { ...p, text } : p)));
+  };
+
+  const handle_blur_edit = (id: string) => {
+    set_paragraphs((prev) =>
+      prev.map((p) =>
+        p.id === id && p.status === "EDITING" ? { ...p, status: "FINALIZED" } : p,
+      ),
+    );
+    if (editing_id === id) {
+      set_editing_id(null);
+    }
+    enqueueSnackbar("자동 저장되었습니다.", { variant: "success" });
   };
 
   return (
@@ -144,7 +218,14 @@ export default function LivePage() {
             />
           </Grid>
           <Grid item xs={12} md={7}>
-            <TranscriptPanel partialText={partial_text} finalSegments={final_segments} />
+            <TranscriptPanel
+              paragraphs={paragraphs}
+              generatingParagraphId={generating_id}
+              editingParagraphId={editing_id}
+              onSelectParagraph={handle_select_paragraph}
+              onChangeParagraph={handle_change_paragraph}
+              onBlurEdit={handle_blur_edit}
+            />
           </Grid>
         </Grid>
         <Box sx={{ mt: 2, color: "text.secondary", fontSize: 13 }}>
