@@ -12,15 +12,15 @@ export async function POST(
     return NextResponse.json({ message: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
   }
   try {
-    const paragraph = paragraphRepo.finalizeGenerating(project.id);
-    return NextResponse.json({ paragraph });
-  } catch (err) {
-    if (err instanceof Error && err.message === "NO_GENERATING") {
+    const paragraph = paragraphRepo.finalizeIfExists(project.id);
+    if (!paragraph) {
       return NextResponse.json(
-        { message: "생성 중인 단락이 없어 세션을 종료할 수 없습니다." },
-        { status: 400 },
+        { message: "생성 중인 단락이 없어 종료할 세션이 없습니다." },
+        { status: 200 },
       );
     }
+    return NextResponse.json({ paragraph });
+  } catch (err) {
     return NextResponse.json({ message: "알 수 없는 오류" }, { status: 500 });
   }
 }

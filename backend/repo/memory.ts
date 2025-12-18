@@ -96,6 +96,13 @@ export const paragraphRepo = {
     const next = paragraphRepo.createGenerating(projectId);
     return { finalized, next };
   },
+  finalizeIfExists: (projectId: string): TranscriptParagraph | null => {
+    const target = paragraphRepo.findGenerating(projectId);
+    if (!target) return null;
+    target.status = "FINALIZED";
+    target.finalizedAt = new Date().toISOString();
+    return target;
+  },
   updateText: (id: string, text: string): TranscriptParagraph => {
     const target = paragraphRepo.getById(id);
     if (!target) {
