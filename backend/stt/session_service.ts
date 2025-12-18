@@ -13,6 +13,7 @@ type SessionState = {
   engineSession: SttEngineSession;
   generatingParagraphId: string;
   partialText: string;
+  lastAudioAt: number;
 };
 
 const sessions = new Map<string, SessionState>();
@@ -45,6 +46,7 @@ export function startSttSession(projectId: string, engine: SttEngine): SessionSt
     engineSession,
     generatingParagraphId: generating.id,
     partialText: "",
+    lastAudioAt: Date.now(),
   };
   sessions.set(state.sessionId, state);
   sessionByProject.set(projectId, state.sessionId);
@@ -66,6 +68,7 @@ export function stopSttSession(sessionId: string): TranscriptParagraph | null {
 export function handleAudioChunk(sessionId: string, chunk: Buffer) {
   const state = sessions.get(sessionId);
   if (!state) throw new Error("SESSION_NOT_FOUND");
+  state.lastAudioAt = Date.now();
   state.engineSession.sendAudio(chunk); // 변환 없이 그대로 전달
 }
 
@@ -94,5 +97,32 @@ function attachEngineCallbacks(state: SessionState) {
     state.generatingParagraphId = next.id;
     state.partialText = "";
   });
+}
+
+// PHASE D: 문단 확정 트리거 (무음/글자수/명시적 종료/Final 이벤트 중 하나 충족 시)
+
+const SILENCE_MS = 1200;
+const MAX_CHAR_THRESHOLD = 400;
+
+export function shouldFinalizeBySilence(sessionId: string): boolean {
+  const state = sessions.get(sessionId);
+  if (!state) throw new Error("SESSION_NOT_FOUND");
+  return Date.now() - state.lastAudioAt >= SILENCE_MS;
+}
+
+export function shouldFinalizeByLength(sessionId: string): boolean {
+  const state = sessions.get(sessionId);
+  if (!state) throw new Error("SESSION_NOT_FOUND");
+  return state.partialText.length >= MAX_CHAR_THRESHOLD;
+}
+
+export function forceFinalize(sessionId: string) {
+  const state = sessions.get(sessionId);
+  if (!state) throw new Error("SESSION_NOT_FOUND");
+  paragraphRepo.appendToGenerating(state.projectId, state.partialText);
+  const { next } = paragraphRepo.finalizeAndCreateNext(state.projectId);
+  state.generatingParagraphId = next.id;
+  state.partialText = "";
+  state.lastAudioAt = Date.now();
 }
 
