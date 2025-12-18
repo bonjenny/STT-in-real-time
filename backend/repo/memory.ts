@@ -87,5 +87,12 @@ export const paragraphRepo = {
     target.finalizedAt = new Date().toISOString();
     return target;
   },
+  finalizeAndCreateNext: (
+    projectId: string,
+  ): { finalized: TranscriptParagraph; next: TranscriptParagraph } => {
+    const finalized = paragraphRepo.finalizeGenerating(projectId);
+    const next = paragraphRepo.createGenerating(projectId);
+    return { finalized, next };
+  },
 };
 
