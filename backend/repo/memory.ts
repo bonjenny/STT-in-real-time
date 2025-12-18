@@ -46,5 +46,38 @@ export const paragraphRepo = {
     paragraphs
       .filter((p) => p.projectId === projectId)
       .sort((a, b) => a.order - b.order),
+  findGenerating: (projectId: string): TranscriptParagraph | undefined =>
+    paragraphs.find((p) => p.projectId === projectId && p.status === "GENERATING"),
+  createGenerating: (projectId: string): TranscriptParagraph => {
+    const existing = paragraphRepo.findGenerating(projectId);
+    if (existing) {
+      throw new Error("GENERATING_EXISTS");
+    }
+    const maxOrder =
+      paragraphs
+        .filter((p) => p.projectId === projectId)
+        .reduce((max, p) => Math.max(max, p.order), 0) ?? 0;
+    const now = new Date().toISOString();
+    const paragraph: TranscriptParagraph = {
+      id: randomUUID(),
+      projectId,
+      order: maxOrder + 1,
+      text: "",
+      status: "GENERATING",
+      startedAt: now,
+      finalizedAt: null,
+    };
+    paragraphs.push(paragraph);
+    return paragraph;
+  },
+  finalizeGenerating: (projectId: string): TranscriptParagraph => {
+    const target = paragraphRepo.findGenerating(projectId);
+    if (!target) {
+      throw new Error("NO_GENERATING");
+    }
+    target.status = "FINALIZED";
+    target.finalizedAt = new Date().toISOString();
+    return target;
+  },
 };
 
