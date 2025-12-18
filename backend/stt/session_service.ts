@@ -24,6 +24,11 @@ const getSessionByProject = (projectId: string): SessionState | undefined => {
   return sid ? sessions.get(sid) : undefined;
 };
 
+export function getSessionIdByProject(projectId: string): string | null {
+  const sid = sessionByProject.get(projectId);
+  return sid ?? null;
+}
+
 export function startSttSession(projectId: string, engine: SttEngine): SessionState {
   const project = projectRepo.get(projectId);
   if (!project) {
@@ -127,6 +132,12 @@ export function handleEngineFailure(sessionId: string): TranscriptParagraph | nu
 
 export function handleClientDisconnect(sessionId: string): TranscriptParagraph | null {
   return endSession(sessionId, true);
+}
+
+export function stopSessionByProject(projectId: string): TranscriptParagraph | null {
+  const sid = sessionByProject.get(projectId);
+  if (!sid) return null;
+  return endSession(sid, true);
 }
 
 function endSession(sessionId: string, finalizeGenerating: boolean): TranscriptParagraph | null {
