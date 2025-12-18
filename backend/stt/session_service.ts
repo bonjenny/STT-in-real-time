@@ -150,3 +150,34 @@ function endSession(sessionId: string, finalizeGenerating: boolean): TranscriptP
   return paragraphRepo.finalizeIfExists(state.projectId);
 }
 
+// ---- Engine 결과 적용 (WS 송신 전 상태 검증 포함) ----
+
+export function applyPartialResult(projectId: string, text: string): { paragraphId: string } {
+  const session = getSessionByProject(projectId);
+  if (!session) throw new Error("SESSION_NOT_FOUND");
+  const generating = paragraphRepo.findGenerating(projectId);
+  if (!generating) throw new Error("NO_GENERATING");
+  session.partialText = text; // overwrite
+  session.lastAudioAt = Date.now();
+  return { paragraphId: generating.id };
+}
+
+export function applyFinalResult(
+  projectId: string,
+  text: string,
+): { finalizedId: string; nextId: string; finalizedText: string } {
+  const session = getSessionByProject(projectId);
+  if (!session) throw new Error("SESSION_NOT_FOUND");
+  const generating = paragraphRepo.findGenerating(projectId);
+  if (!generating) throw new Error("NO_GENERATING");
+  if (generating.id !== session.generatingParagraphId) {
+    throw new Error("INVALID_STATE");
+  }
+  const appended = paragraphRepo.appendToGenerating(projectId, text);
+  const { finalized, next } = paragraphRepo.finalizeAndCreateNext(projectId);
+  session.generatingParagraphId = next.id;
+  session.partialText = "";
+  session.lastAudioAt = Date.now();
+  return { finalizedId: finalized.id, nextId: next.id, finalizedText: appended.text };
+}
+
