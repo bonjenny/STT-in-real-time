@@ -56,13 +56,7 @@ export function startSttSession(projectId: string, engine: SttEngine): SessionSt
 }
 
 export function stopSttSession(sessionId: string): TranscriptParagraph | null {
-  const state = sessions.get(sessionId);
-  if (!state) return null;
-  state.engineSession.close();
-  sessions.delete(sessionId);
-  sessionByProject.delete(state.projectId);
-  // GENERATING 있으면 FINALIZED 처리
-  return paragraphRepo.finalizeIfExists(state.projectId);
+  return endSession(sessionId, true);
 }
 
 export function handleAudioChunk(sessionId: string, chunk: Buffer) {
@@ -124,5 +118,24 @@ export function forceFinalize(sessionId: string) {
   state.generatingParagraphId = next.id;
   state.partialText = "";
   state.lastAudioAt = Date.now();
+}
+
+// PHASE F: 오류/종료 복구 훅
+export function handleEngineFailure(sessionId: string): TranscriptParagraph | null {
+  return endSession(sessionId, true);
+}
+
+export function handleClientDisconnect(sessionId: string): TranscriptParagraph | null {
+  return endSession(sessionId, true);
+}
+
+function endSession(sessionId: string, finalizeGenerating: boolean): TranscriptParagraph | null {
+  const state = sessions.get(sessionId);
+  if (!state) return null;
+  state.engineSession.close();
+  sessions.delete(sessionId);
+  sessionByProject.delete(state.projectId);
+  if (!finalizeGenerating) return null;
+  return paragraphRepo.finalizeIfExists(state.projectId);
 }
 
